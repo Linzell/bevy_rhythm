@@ -1,16 +1,19 @@
 use bevy::prelude::*;
+use gameconst::*;
+use crate::types::*;
 
-/// Keeps the textures and materials for Arrows
 struct ArrowMaterialResource {
     red_texture: Handle<ColorMaterial>,
     blue_texture: Handle<ColorMaterial>,
     green_texture: Handle<ColorMaterial>,
     border_texture: Handle<ColorMaterial>,
 }
-impl FromResources for ArrowMaterialResource {
-    fn from_resources(resources: &Resources) -> Self {
-        let mut materials = resources.get_mut::<Assets<ColorMaterial>>().unwrap();
-        let asset_server = resources.get::<AssetServer>().unwrap();
+impl FromWorld for ArrowMaterialResource {
+    fn from_world(world: &mut World) -> Self {
+        let world = world.cell();
+
+        let mut materials = world.get_resource_mut::<Assets<ColorMaterial>>().unwrap();
+        let asset_server = world.get_resource::<AssetServer>().unwrap();
 
         let red_handle = asset_server.load("images/arrow_red.png");
         let blue_handle = asset_server.load("images/arrow_blue.png");
@@ -25,34 +28,70 @@ impl FromResources for ArrowMaterialResource {
     }
 }
 
-struct Arrow;
+struct Arrow {
+    speed: Speed,
+    direction: Directions,
+}
 
 struct SpawnTimer(Timer);
 
+pub struct ArrowsPlugin;
+impl Plugin for ArrowsPlugin {
+    fn build(&self, app: &mut AppBuilder) {
+        app
+            .init_resource::<ArrowMaterialResource>()
+            .add_resource(SpawnTimer(Timer::from_seconds(1.0, true)))
+            .add_system(spawn_arrows.system())
+            .add_system(move_arrows.system());
+    }
+}
+
 fn spawn_arrows(
-    mut commands: Commands,
+    commands: &mut Commands,
     time: Res<Time>,
-    mut timer: ResMut<SpawnTimer>,
+    mut song_config: ResMut<SongConfig>,
     materials: Res<ArrowMaterialResource>,
 ) {
-    timer.0.tick(time.delta_seconds);
-    if timer.0.finished {
-        let mut rng = rand::thread_rng();
-        let x = rng.gen_range(0.0..1280.0);
-        let y = rng.gen_range(0.0..720.0);
-        let color = rng.gen_range(0..3);
-        let texture = match color {
-            0 => materials.red_texture.clone(),
-            1 => materials.blue_texture.clone(),
-            2 => materials.green_texture.clone(),
-            _ => panic!("Invalid color"),
-        };
-        commands
-            .spawn_bundle(SpriteBundle {
-                material: texture,
-                transform: Transform::from_xyz(x, y, 0.0),
-                ..Default::default()
-            })
-            .insert(Arrow);
+  let secs = time.seconds_since_startup() - 3.;
+  let secs_last = secs - time.delta_seconds_f64();
+
+  let mut remove_counter = 0;
+  for arrow in &song_config.arrows {
+    if secs_last < arrow.spawn_time && arrow.spawn_time < secs {
+      remove_counter += 1;
+
+      let material = match arrow.speed {
+        Speed::Slow => &materials.green_texture,
+        Speed::Medium => &materials.blue_texture,
+        Speed::Fast => &materials.red_texture,
+      };
+
+      let mut transform = 
+        Transform::from_translation(Vec3::new(SPAWN_POSITION, arrow.direction.y(), 1.));
+      transform.rotate(Quat::from_rotation_z(arrow.direction.rotation()));
+      commands
+        .spawn_bundle(SpriteBundle {
+          texture: material,
+          sprite: Sprite::new(Vec2::new(140., 140.)),
+          transform,
+          ..Default::default()
+        })
+        .with(Arrow {
+          speed: arrow.speed,
+          direction: arrow.direction,
+        });
+    } else {
+      break;
+    }
+  }
+
+  for _ in 0..remove_counter {
+    song_config.arrows.remove(0);
+  }
+}
+
+fn move_arrows(time: Res<Time>, mut query: Query<(&mut Transform, &Arrow)>) {
+    for (mut transform, arrow) in query.iter_mut() {
+        transform.translation.x += time.delta_seconds() * arrow.speed.value();
     }
 }
