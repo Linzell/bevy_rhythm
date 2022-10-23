@@ -1,5 +1,5 @@
 use gameconst::*;
-use bevy::input::{keyboard::KeyCode, Input};
+use bevy::{input::{keyboard::KeyCode, Input}, prelude::Component};
 use core::f32::consts::PI;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -13,10 +13,10 @@ pub enum Directions {
 impl Directions {
   pub fn key_just_pressed(&self, input: &Input<KeyCode>) -> bool {
     let keys= match self {
-      Directions::Up => [KeyCode::Up, KeyCode::D] || [KeyCode::Up],
-      Directions::Down => [KeyCode::Down, KeyCode::F] || [KeyCode::Down],
-      Directions::Left => [KeyCode::Left, KeyCode::J] || [KeyCode::Left],
-      Directions::Right => [KeyCode::Right, KeyCode::K] || [KeyCode::Right],
+      Directions::Up => [KeyCode::Up, KeyCode::D],
+      Directions::Down => [KeyCode::Down, KeyCode::F],
+      Directions::Left => [KeyCode::Left, KeyCode::J],
+      Directions::Right => [KeyCode::Right, KeyCode::K],
     };
     keys.iter().any(|code| input.just_pressed(*code))
   }
@@ -40,7 +40,7 @@ impl Directions {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug)]
 pub enum Speed {
     Slow,
     Medium,
@@ -60,27 +60,27 @@ impl Speed {
   }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct ArrowTime {
-    pub direction: Directions,
-    pub speed: Speed,
     pub spawn_time: f64,
+    pub speed: Speed,
+    pub direction: Directions,
 }
 impl ArrowTime {
-  pub fn new(direction: Directions, speed: Speed, click_time: f64) -> Self {
+  fn new(click_time: f64, speed: Speed, direction: Directions) -> Self {
+    let speed_value = speed.value();
     Self {
-      direction,
+      spawn_time: click_time - (DISTANCE / speed_value) as f64,
       speed,
-      spawn_time: click_time - (DISTANCE / speed.value()) as f64,
+      direction,
     }
   }
 }
 
-#[derive(Debug)]
+#[derive(Component)]
 pub struct SongConfig {
     pub arrows: Vec<ArrowTime>,
 }
-
 pub fn load_config() -> SongConfig {
     SongConfig {
       arrows: vec![

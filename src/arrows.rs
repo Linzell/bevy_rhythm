@@ -1,33 +1,31 @@
-use bevy::prelude::*;
+use bevy::{prelude::*};
 use gameconst::*;
 use crate::types::*;
 
 struct ArrowMaterialResource {
-    red_texture: Handle<ColorMaterial>,
-    blue_texture: Handle<ColorMaterial>,
-    green_texture: Handle<ColorMaterial>,
-    border_texture: Handle<ColorMaterial>,
+    red_texture: Handle<Image>,
+    blue_texture: Handle<Image>,
+    green_texture: Handle<Image>,
+    border_texture: Handle<Image>,
 }
+
 impl FromWorld for ArrowMaterialResource {
     fn from_world(world: &mut World) -> Self {
-        let world = world.cell();
-
-        let mut materials = world.get_resource_mut::<Assets<ColorMaterial>>().unwrap();
         let asset_server = world.get_resource::<AssetServer>().unwrap();
-
-        let red_handle = asset_server.load("images/arrow_red.png");
-        let blue_handle = asset_server.load("images/arrow_blue.png");
-        let green_handle = asset_server.load("images/arrow_green.png");
-        let border_handle = asset_server.load("images/arrow_border.png");
-        ArrowMaterialResource {
-            red_texture: materials.add(red_handle.into()),
-            blue_texture: materials.add(blue_handle.into()),
-            green_texture: materials.add(green_handle.into()),
-            border_texture: materials.add(border_handle.into()),
+        let red_texture = asset_server.load("images/arrow_red.png");
+        let blue_texture = asset_server.load("images/arrow_blue.png");
+        let green_texture = asset_server.load("images/arrow_green.png");
+        let border_texture = asset_server.load("images/arrow_border.png");
+        Self {
+            red_texture,
+            blue_texture,
+            green_texture,
+            border_texture,
         }
     }
 }
 
+#[derive(Component)]
 struct Arrow {
     speed: Speed,
     direction: Directions,
@@ -35,22 +33,11 @@ struct Arrow {
 
 struct SpawnTimer(Timer);
 
-pub struct ArrowsPlugin;
-impl Plugin for ArrowsPlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        app
-            .init_resource::<ArrowMaterialResource>()
-            .add_resource(SpawnTimer(Timer::from_seconds(1.0, true)))
-            .add_system(spawn_arrows.system())
-            .add_system(move_arrows.system());
-    }
-}
-
 fn spawn_arrows(
-    commands: &mut Commands,
-    time: Res<Time>,
+    mut commands: Commands,
     mut song_config: ResMut<SongConfig>,
     materials: Res<ArrowMaterialResource>,
+    time: Res<Time>,
 ) {
   let secs = time.seconds_since_startup() - 3.;
   let secs_last = secs - time.delta_seconds_f64();
@@ -61,9 +48,9 @@ fn spawn_arrows(
       remove_counter += 1;
 
       let material = match arrow.speed {
-        Speed::Slow => &materials.green_texture,
-        Speed::Medium => &materials.blue_texture,
-        Speed::Fast => &materials.red_texture,
+        Speed::Slow => materials.green_texture.clone(),
+        Speed::Medium => materials.blue_texture.clone(),
+        Speed::Fast => materials.red_texture.clone(),
       };
 
       let mut transform = 
@@ -72,13 +59,16 @@ fn spawn_arrows(
       commands
         .spawn_bundle(SpriteBundle {
           texture: material,
-          sprite: Sprite::new(Vec2::new(140., 140.)),
+          sprite: Sprite {
+            custom_size: Option::Some(Vec2::new(140., 140.)),
+            ..Default::default()
+          },
           transform,
           ..Default::default()
         })
-        .with(Arrow {
-          speed: arrow.speed,
-          direction: arrow.direction,
+        .insert(Arrow {
+          speed: arrow.speed.clone(),
+          direction: arrow.direction.clone(),
         });
     } else {
       break;
@@ -91,7 +81,20 @@ fn spawn_arrows(
 }
 
 fn move_arrows(time: Res<Time>, mut query: Query<(&mut Transform, &Arrow)>) {
-    for (mut transform, arrow) in query.iter_mut() {
-        transform.translation.x += time.delta_seconds() * arrow.speed.value();
+  for (mut transform, arrow) in query.iter_mut() {
+    transform.translation.x += time.delta_seconds() * arrow.speed.value();
+  }
+}
+
+pub struct ArrowsPlugin;
+impl Plugin for ArrowsPlugin {
+    fn build(&self, app: &mut bevy::prelude::App) {
+        app
+          // Initialize Resources
+          .init_resource::<ArrowMaterialResource>()
+          .insert_resource(SpawnTimer(Timer::from_seconds(1.0, true)))
+          // Add systems
+          .add_system(spawn_arrows)
+          .add_system(move_arrows);
     }
 }
