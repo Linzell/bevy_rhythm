@@ -1,4 +1,4 @@
-use bevy::{input::system::exit_on_esc_system, prelude::*};
+use bevy::{window::close_on_esc, prelude::*};
 
 mod arrows;
 use arrows::ArrowsPlugin;
@@ -16,7 +16,7 @@ fn main() {
           ..Default::default()
       })
       .add_startup_system(setup)
-      .add_system(exit_on_esc_system)
+      .add_system(close_on_esc)
       .add_plugins(DefaultPlugins)
       .add_plugin(ArrowsPlugin)
     .run();
@@ -25,7 +25,7 @@ fn main() {
 fn setup(mut commands: Commands) {
   let config = types::load_config();
   commands
-      .spawn_bundle(OrthographicCameraBundle::new_2d())
+      .spawn_bundle(Camera2dBundle::default())
       .insert(SongConfig { arrows: config.arrows });
       //.commands()
       //.spawn_bundle(UiCameraBundle::default());
